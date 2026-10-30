@@ -25,7 +25,7 @@
     "engine": "node engine/cli.js --no-open",
     "build": "tsc -p web && vite build && node scripts/pack.js",
     "preview": "vite preview",
-    "test": "node --test engine/test/",
+    "test": "node --test engine/test/*.test.js",
     "assets": "node scripts/assets.js",
     "screenshots": "node scripts/screenshots.js"
   },
