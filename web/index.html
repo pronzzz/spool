@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Spool — wind YouTube playlists onto your disk</title>
+    <meta name="description" content="Paste a YouTube playlist, pick MP3, M4A or MP4, and every video lands in a numbered, tagged folder on your computer. A calm front end for yt-dlp that runs on your own machine." />
+    <meta name="theme-color" content="#0f0f0d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f2efe9" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Spool — wind YouTube playlists onto your disk" />
+    <meta property="og:description" content="A calm front end for yt-dlp. Numbered, tagged, resumable downloads that run on your own machine." />
+    <meta property="og:url" content="https://getspool.vercel.app" />
+    <meta property="og:image" content="https://getspool.vercel.app/og.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      try {
+        const t = localStorage.getItem('spool.theme')
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+      } catch {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>Spool needs JavaScript to run.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

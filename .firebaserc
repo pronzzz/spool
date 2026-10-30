@@ -1,0 +1,11 @@
+{
+  "projects": { "default": "getspool-app" },
+  "targets": {
+    "getspool-app": {
+      "hosting": {
+        "app": ["getspool"],
+        "default": ["getspool-app"]
+      }
+    }
+  }
+}

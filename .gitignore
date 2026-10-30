@@ -1,28 +1,7 @@
-# Dependencies
-node_modules/
-
-# Downloads
-downloads/
-
-# Build output
-client/dist/
-
-# Environment
-.env
-.env.local
-.env.production
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-
-# OS
+node_modules
+dist
+*.tgz
 .DS_Store
-Thumbs.db
-
-# Logs
+.vercel
+.firebase
 *.log
-npm-debug.log*
