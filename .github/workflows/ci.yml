@@ -33,16 +33,25 @@ jobs:
     env:
       SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GETSPOOL_APP }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - name: Check for the deploy secret
+        id: secret
+        run: |
+          if [ -n "$SERVICE_ACCOUNT" ]; then echo "ok=true" >> "$GITHUB_OUTPUT"
+          else echo "::notice::FIREBASE_SERVICE_ACCOUNT_GETSPOOL_APP is not set; skipping the Firebase deploy."; fi
+      - if: steps.secret.outputs.ok
+        uses: actions/checkout@v5
+      - if: steps.secret.outputs.ok
+        uses: actions/download-artifact@v5
         with:
           name: dist
           path: dist
       - name: Authenticate
+        if: steps.secret.outputs.ok
         run: |
           printf '%s' "$SERVICE_ACCOUNT" > "$RUNNER_TEMP/sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/sa.json" >> "$GITHUB_ENV"
       - name: Deploy to Firebase Hosting
+        if: steps.secret.outputs.ok
         run: npx -y firebase-tools@15 deploy --only hosting --project getspool-app --non-interactive
 
   release:
