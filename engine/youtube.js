@@ -79,8 +79,37 @@ export class UserError extends Error {
 
 /** Reads metadata for a video or playlist without downloading anything. */
 export function inspect(url, tools) {
+  return readJson(['-J', '--flat-playlist', '--no-warnings', '--', url], tools).then((info) => shapeInfo(info, url))
+}
+
+export const SEARCH_LIMIT = 30
+
+/** Cleans a search query, or returns null if there is nothing to search for. */
+export function cleanQuery(q) {
+  if (typeof q !== 'string') return null
+  const clean = q.replace(/[\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200)
+  return clean || null
+}
+
+/** Searches YouTube. Results come back shaped like a playlist. */
+export function search(query, limit, tools) {
+  const n = Math.min(SEARCH_LIMIT, Math.max(1, Number(limit) || 20))
+  const target = `ytsearch${n}:${query}`
+  return readJson(['-J', '--flat-playlist', '--no-warnings', '--', target], tools).then((info) => {
+    const entries = (info.entries || []).filter((e) => e && VIDEO_ID.test(e.id || '') && e.ie_key !== 'YoutubeTab')
+    return {
+      kind: 'search',
+      id: null,
+      url: null,
+      title: query,
+      channel: null,
+      items: entries.map((e, i) => toItem(e, i + 1)),
+    }
+  })
+}
+
+function readJson(args, tools) {
   return new Promise((resolve, reject) => {
-    const args = ['-J', '--flat-playlist', '--no-warnings', '--', url]
     const proc = spawn(tools.ytdlp.bin, args, { windowsHide: true })
     const chunks = []
     let stderr = ''
@@ -96,7 +125,7 @@ export function inspect(url, tools) {
       clearTimeout(timer)
       if (code !== 0) return reject(new UserError(cleanError(stderr) || 'yt-dlp could not read that link.'))
       try {
-        resolve(shapeInfo(JSON.parse(Buffer.concat(chunks).toString('utf8')), url))
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
       } catch (err) {
         reject(err instanceof UserError ? err : new Error('yt-dlp returned something Spool could not read.'))
       }

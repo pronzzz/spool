@@ -25,7 +25,7 @@ Paste a link, pick MP3, M4A or MP4, press Spool — every video lands in a numbe
 brew install yt-dlp ffmpeg
 
 # 2. start the engine — it opens Spool in your browser
-npx https://getspool.vercel.app/spool-2.0.0.tgz
+npx https://getspool.vercel.app/spool-2.1.0.tgz
 ```
 
 Needs Node 20 or newer. Files go to `~/Downloads/Spool/<playlist>/001 Title.mp3`.
@@ -50,6 +50,7 @@ Needs Node 20 or newer. Files go to `~/Downloads/Spool/<playlist>/001 Title.mp3`
 - **Patient.** Three downloads at a time, each retried up to three times, with the reason shown if it still fails.
 - **Live.** Per-file progress and speed over Server-Sent Events; the tab title shows `(42/182) Spool`.
 - **Private.** No accounts, analytics or servers in the middle. The engine has zero npm dependencies.
+- **Phone downloads.** With `--lan`, [Wheelhouse](https://github.com/pronzzz/Wheelhouse) on an Android phone can search YouTube and pull finished songs from the engine over your Wi-Fi. See [Phones on your network](#phones-on-your-network).
 
 ## How it fits together
 
@@ -61,7 +62,7 @@ Needs Node 20 or newer. Files go to `~/Downloads/Spool/<playlist>/001 Title.mp3`
 ```
 
 The website is static and hosted on Vercel and Firebase. The work happens in the engine, a ~700-line Node server that only
-listens on `127.0.0.1`, only answers requests addressed to `localhost` (blocks DNS rebinding), and only accepts browser requests
+listens on `127.0.0.1` (unless you start it with `--lan`, see below), only answers requests addressed to `localhost` (blocks DNS rebinding), and only accepts browser requests
 from the Spool sites or `localhost` pages. It also serves the same web app itself at `http://localhost:7317`, so it works with no
 internet connection to the site at all.
 
@@ -74,14 +75,34 @@ would detour through someone else’s machine. Running locally fixes all three.
 ### Engine options
 
 ```bash
-npx https://getspool.vercel.app/spool-2.0.0.tgz --dir ~/Music/YouTube   # save elsewhere
-npx https://getspool.vercel.app/spool-2.0.0.tgz --concurrency 5         # 1–8 at once (default 3)
-npx https://getspool.vercel.app/spool-2.0.0.tgz --port 7400             # then open the site with ?port=7400
-npx https://getspool.vercel.app/spool-2.0.0.tgz doctor                  # check yt-dlp and ffmpeg
+npx https://getspool.vercel.app/spool-2.1.0.tgz --dir ~/Music/YouTube   # save elsewhere
+npx https://getspool.vercel.app/spool-2.1.0.tgz --concurrency 5         # 1–8 at once (default 3)
+npx https://getspool.vercel.app/spool-2.1.0.tgz --port 7400             # then open the site with ?port=7400
+npx https://getspool.vercel.app/spool-2.1.0.tgz doctor                  # check yt-dlp and ffmpeg
 ```
 
 `--no-open` skips opening the browser; `--allow-origin <url>` lets another site you host talk to the engine.
 `SPOOL_YTDLP` and `SPOOL_FFMPEG` point at specific binaries.
+
+### Phones on your network
+
+```bash
+npx https://getspool.vercel.app/spool-2.1.0.tgz --lan             # also serve phones on this Wi-Fi
+npx https://getspool.vercel.app/spool-2.1.0.tgz --lan --new-code  # make a new pairing code
+```
+
+`--lan` lets [Wheelhouse](https://github.com/pronzzz/Wheelhouse) 1.1+ use the engine from a phone on the same network. The engine
+prints a six-character **pairing code** and its address; the phone finds it with a UDP broadcast on the engine's port (or you type the
+address), and the code is entered once. On macOS, allow incoming connections for `node` if asked.
+
+What the phone can do is deliberately small: search YouTube, read a link, and download **audio** (M4A or MP3 320). Songs are tagged with
+a clean title and artist and a square cover, kept in a temporary folder on the computer, and deleted as soon as the phone has its copy.
+Everything else (the web app, other formats, your download folder) stays local-only.
+
+- Phones must send the code with every request; eight wrong codes in ten minutes lock that address out for ten minutes.
+- Requests from browsers on other machines are refused, so a web page can't use the engine through your network.
+- Traffic is plain HTTP inside your network. Use it on a home network you trust, and stop the engine when you're done.
+- The code lives in `~/.config/spool/lan.json` (`$XDG_CONFIG_HOME` is respected). `--new-code` replaces it and unpairs every phone.
 
 If downloads suddenly fail, update yt-dlp (`brew upgrade yt-dlp`). Spool warns when your copy is more than 60 days old.
 

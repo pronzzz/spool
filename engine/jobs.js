@@ -26,8 +26,21 @@ export function safeName(name) {
   return clean || 'Untitled'
 }
 
+// Tidier tags and covers for music players: drop "(Official Video)" and the like, split "Artist - Song"
+// titles when YouTube has no artist, and fall back to the song title as the album so every
+// single gets its own cover instead of piling up under "Unknown Album".
+export const TIDY_TAGS = [
+  '--replace-in-metadata', 'title,track',
+  ' *[([](?:[Oo]fficial|[Ll]yrics?|[Aa]udio|[Mm]usic [Vv]ideo|HD|HQ|4K|[Vv]isuali[sz]er)[^)\\]]*[)\\]]', '',
+  '--parse-metadata', '%(artists&SKIP|)s%(title)s:^(?!SKIP)(?P<artist>.+?) - (?P<title>.+)$',
+  '--parse-metadata', '%(album,track,title)s:%(album)s',
+  // Square JPEG covers: the centre of the 16:9 thumbnail, which is where YouTube Music puts the album art.
+  '--convert-thumbnails', 'jpg',
+  '--ppa', `ThumbnailsConvertor+FFmpeg_o:-c:v mjpeg -vf crop="'if(gt(ih,iw),iw,ih)':'if(gt(iw,ih),ih,iw)'"`,
+]
+
 /** yt-dlp arguments for one video. Exported for tests. */
-export function buildArgs({ id, index, numbered, format, quality, dir, hasFfmpeg, ffmpegBin }) {
+export function buildArgs({ id, index, numbered, format, quality, dir, hasFfmpeg, ffmpegBin, archive = true, tidy = false }) {
   const prefix = numbered ? `${String(index).padStart(3, '0')} ` : ''
   const args = [
     '--newline',
@@ -43,8 +56,9 @@ export function buildArgs({ id, index, numbered, format, quality, dir, hasFfmpeg
     '--paths', dir,
     '--output', `${prefix}%(title)s.%(ext)s`,
     '--trim-filenames', '160',
-    '--download-archive', path.join(dir, '.spool-archive'),
   ]
+  if (archive) args.push('--download-archive', path.join(dir, '.spool-archive'))
+  if (tidy && FORMATS[format]?.kind === 'audio') args.push(...TIDY_TAGS)
 
   if (ffmpegBin && ffmpegBin !== 'ffmpeg') args.push('--ffmpeg-location', ffmpegBin)
 
@@ -88,8 +102,12 @@ export class JobManager extends EventEmitter {
     this.active = 0
   }
 
-  create({ title, kind, sourceUrl, items, format, quality }) {
-    const dir = kind === 'playlist' ? path.join(this.root, safeName(title)) : this.root
+  /**
+   * Starts a download. `dir`, `archive` and `tidy` are for LAN jobs: they go to a private
+   * folder the phone collects from, always download (no archive) and get music-player tags.
+   */
+  create({ title, kind, sourceUrl, items, format, quality, dir: dirOverride, archive = true, tidy = false, lan = false }) {
+    const dir = dirOverride || (kind === 'playlist' ? path.join(this.root, safeName(title)) : this.root)
     mkdirSync(dir, { recursive: true })
 
     const job = {
@@ -103,7 +121,10 @@ export class JobManager extends EventEmitter {
       state: 'running',
       createdAt: Date.now(),
       finishedAt: null,
-      numbered: kind === 'playlist',
+      numbered: kind === 'playlist' && !lan,
+      archive,
+      tidy,
+      lan,
       items: items.map((it) => ({
         id: it.id,
         index: it.index,
@@ -222,6 +243,8 @@ export class JobManager extends EventEmitter {
         dir: job.dir,
         hasFfmpeg,
         ffmpegBin: this.tools.ffmpeg.bin,
+        archive: job.archive,
+        tidy: job.tidy,
       })
       // Video plus audio arrive as two separate downloads that ffmpeg merges.
       const streams = job.format === 'mp4' && hasFfmpeg ? 2 : 1
@@ -326,7 +349,11 @@ export class JobManager extends EventEmitter {
     const finished = [...this.jobs.values()]
       .filter((j) => j.state !== 'running')
       .sort((a, b) => a.createdAt - b.createdAt)
-    while (this.jobs.size > MAX_JOBS_KEPT && finished.length) this.jobs.delete(finished.shift().id)
+    while (this.jobs.size > MAX_JOBS_KEPT && finished.length) {
+      const gone = finished.shift()
+      this.jobs.delete(gone.id)
+      this.emit('pruned', gone)
+    }
   }
 }
 

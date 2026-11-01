@@ -1,6 +1,6 @@
 {
   "name": "spool",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Wind whole YouTube playlists onto your disk. A calm web interface and a tiny local engine for yt-dlp.",
   "type": "module",
   "license": "MIT",

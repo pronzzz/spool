@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { readFileSync, rmSync } from 'node:fs'
+import { homedir, tmpdir } from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { detectTools } from './tools.js'
 import { createServer } from './server.js'
+import { Gate, computerName, lanAddresses, loadCode, startDiscovery } from './lan.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const { version } = JSON.parse(readFileSync(path.join(here, '../package.json'), 'utf8'))
@@ -23,6 +24,8 @@ const HELP = `
     --dir <path>        where files go (default ~/Downloads/Spool)
     --concurrency <n>   downloads at once, 1–8 (default 3)
     --allow-origin <u>  also accept requests from this site
+    --lan               let phones on your Wi-Fi use Spool (Wheelhouse)
+    --new-code          with --lan: make a new pairing code
     --no-open           don't open the browser
     -v, --version
     -h, --help
@@ -38,6 +41,8 @@ try {
       concurrency: { type: 'string', default: '3' },
       'allow-origin': { type: 'string', multiple: true, default: [] },
       'no-open': { type: 'boolean', default: false },
+      lan: { type: 'boolean', default: false },
+      'new-code': { type: 'boolean', default: false },
       version: { type: 'boolean', short: 'v' },
       help: { type: 'boolean', short: 'h' },
     },
@@ -89,7 +94,14 @@ const concurrency = Math.min(8, Math.max(1, Number(opts.concurrency) || 3))
 const root = path.resolve(opts.dir)
 const local = `http://localhost:${port}`
 
-const server = createServer({ root, tools, version, concurrency, allowOrigins: opts['allow-origin'] })
+let lan = null
+if (opts.lan) {
+  const dir = path.join(tmpdir(), 'spool-lan')
+  rmSync(dir, { recursive: true, force: true }) // leftovers from an earlier run
+  lan = { gate: new Gate(loadCode({ reset: opts['new-code'] })), name: computerName(), dir }
+}
+
+const server = createServer({ root, tools, version, concurrency, allowOrigins: opts['allow-origin'], lan })
 
 server.on('error', async (err) => {
   if (err.code !== 'EADDRINUSE') throw err
@@ -103,11 +115,20 @@ server.on('error', async (err) => {
   process.exit(1)
 })
 
-server.listen(port, '127.0.0.1', () => {
+// LAN mode listens on every interface; without it only this computer can connect.
+server.listen(port, lan ? '0.0.0.0' : '127.0.0.1', () => {
   console.log(`\n  ${accent('●')} ${accent('spool')} ${version}\n`)
   console.log(`    open     ${local}`)
   console.log(`    saving   ${tilde(root)}`)
   printTools()
+  if (lan) {
+    startDiscovery({ port, name: lan.name, version })
+    const ips = lanAddresses()
+    console.log(`\n    phones   Wheelhouse › Spool › Find Spool on Wi-Fi`)
+    console.log(`    code     ${accent(lan.gate.code.toString())}`)
+    if (ips.length) console.log(dim(`    address  ${ips.map((ip) => `${ip}:${port}`).join('  ')}`))
+    if (process.platform === 'darwin') console.log(dim('    if macOS asks, allow incoming connections for node'))
+  }
   console.log(dim(`\n    also works from https://getspool.vercel.app · ctrl+c to stop\n`))
   if (!opts['no-open']) open(local)
 })
